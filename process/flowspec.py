@@ -66,7 +66,7 @@ class ACL(object):
             pass
 
     @staticmethod
-    def _build(flow, action):
+    def _build_drop_acl(flow):
         acl = '[iptables]\n-A FORWARD --in-interface swp+'
         if 'protocol' in flow:
             acl += ' -p ' + re.sub('[!<>=]', '', flow['protocol'][0])
@@ -80,6 +80,21 @@ class ACL(object):
             acl += ' --dport ' + re.sub('[!<>=]', '', flow['destination-port'][0])
         acl = acl + ' -j DROP\n'
         return acl
+
+    @staticmethod
+    def _build_accept_acl(flow):
+        return acl
+
+    @classmethod
+    def _build(cls, flow, action):
+        acl = {
+            None: cls._build_accept_acl,
+            'rate-limit:0': cls._build_drop_acl
+        }
+        try:
+            return acl[action](flow)
+        except KeyError:
+            pass
 
     @classmethod
     def insert(cls, flow, action):
@@ -157,7 +172,10 @@ while True:
             # The RFC allows both encoding
             flow = flow['no-nexthop'][0] if 'no-nexthop' in flow else flow[0]
 
-            community = update['attribute']['extended-community'][0]
+            try:
+                community = update['attribute']['extended-community'][0]["string"]
+            except KeyError:
+                community = None
             ACL.insert(flow, community)
             continue
 
