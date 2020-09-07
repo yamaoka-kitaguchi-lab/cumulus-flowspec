@@ -84,6 +84,8 @@ class ACL(object):
         acl = "[{v}]\n-A {c}".format(v="iptables" if is_ipv4 else "ip6tables", c=cls.chain)
         if 'protocol' in flow:
             acl += ' -p {p}'.format(p=cls._expand_text_match(flow['protocol'][0]))
+        if 'next-header' in flow:
+            acl += ' -p {p}'.format(p=cls._expand_text_match(flow['next_header'][0]))
         if 'source-ipv4' in flow:
             acl += ' -s {s}'.format(s=flow['source-ipv4'][0])
         if 'destination-ipv4' in flow:
@@ -97,7 +99,7 @@ class ACL(object):
         if 'destination-port' in flow:
             acl += ' --dport {d}'.format(d=cls._expand_number_match(flow['destination-port'][0]))
         if 'icmp-type' in flow:
-            acl += ' --icmp{v}-type {t}'.format(v="" if is_ipv4 else "v6",
+            acl += ' -p icmp{v} --icmp{v}-type {t}'.format(v="" if is_ipv4 else "v6",
                                                 t=cls._expand_text_match(flow['icmp-type'][0]))
         acl += ' -j {t}\n'.format(t='DROP' if is_drop else 'ACCEPT')
         return acl
