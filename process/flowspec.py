@@ -79,29 +79,34 @@ class ACL(object):
         return re.sub('[!<>=]', '', ports)
 
     @classmethod
-    def _build_acl(cls, flow, drop=True):
+    def _build_acl(cls, flow, is_ipv4=True, is_drop=False):
         # ToDo: Support commas, dots, relational operators and logical operators
-        acl = "[iptables]\n-A {c} -i {i}".format(c=cls.chain, i=cls.interface)
+        acl = "[{v}]\n-A {c} -i {i}".format(v="iptables" if is_ipv4 else "ip6tables", c=cls.chain, i=cls.interface)
         if 'protocol' in flow:
-            acl += ' -p ' + cls._expand_protocol_match(flow['protocol'][0])
+            acl += ' -p {p}'.format(p=cls._expand_protocol_match(flow['protocol'][0]))
         if 'source-ipv4' in flow:
-            acl += ' -s ' + flow['source-ipv4'][0]
+            acl += ' -s {s}'.format(s=flow['source-ipv4'][0])
         if 'destination-ipv4' in flow:
-            acl += ' -d ' + flow['destination-ipv4'][0]
+            acl += ' -d {d}'.format(d=flow['destination-ipv4'][0])
+        if 'source-ipv6' in flow:
+            acl += ' -s {s}'.format(s=flow['source-ipv6'][0])
+        if 'destination-ipv6' in flow:
+            acl += ' -d {d}'.format(d=flow['destination-ipv6'][0])
         if 'source-port' in flow:
-            acl += ' --sport ' + cls._expand_port_match(flow['source-port'][0])
+            acl += ' --sport {s}'.format(s=cls._expand_port_match(flow['source-port'][0]))
         if 'destination-port' in flow:
-            acl += ' --dport ' + cls._expand_port_match(flow['destination-port'][0])
+            acl += ' --dport {d}'.format(d=cls._expand_port_match(flow['destination-port'][0]))
         if 'icmp-type' in flow:
-            acl += ' -p icmp --icmp-type ' + cls._expand_port_match(flow['icmp-type'][0])
-        acl += ' -j {t}\n'.format(t='DROP' if drop else 'ACCEPT')
+            acl += ' --icmp{v}-type {t}'.format(v="" if is_ipv4 else "v6",
+                                                t=cls._expand_port_match(flow['icmp-type'][0]))
+        acl += ' -j {t}\n'.format(t='DROP' if is_drop else 'ACCEPT')
         return acl
 
     @classmethod
-    def _build(cls, flow, action):
+    def _build(cls, flow, action, is_ipv4):
         acl = {
-            None: lambda f: cls._build_acl(f, drop=False),
-            'rate-limit:0': lambda f: cls._build_acl(f, drop=True),
+            None: lambda f: cls._build_acl(f, is_ipv4, is_drop=False),
+            'rate-limit:0': lambda f: cls._build_acl(f, is_ipv4, is_drop=True),
         }
         try:
             return acl[action](flow)
@@ -109,12 +114,12 @@ class ACL(object):
             pass
 
     @classmethod
-    def insert(cls, flow, action):
+    def insert(cls, flow, action, is_ipv4):
         key = flow['string']
         if key in cls._known:
             return
         uid = cls._uid()
-        acl = cls._build(flow, action)
+        acl = cls._build(flow, action, is_ipv4)
         cls._known[key] = (uid, acl)
         try:
             with open(cls._file(uid), 'w') as f:
@@ -179,7 +184,9 @@ while True:
         update = message['neighbor']['message']['update']
 
         if 'announce' in update:
-            flowlst = update['announce']['ipv4 flow']
+            announce = update['announce']
+            is_ipv4 = True if 'ipv4 flow' in announce else False
+            flowlst = announce['ipv4 flow'] if is_ipv4 else announce['ipv6 flow']
             if 'no-nexthop' in flowlst:
                 flowlst = flowlst['no-nexthop']
             
@@ -187,11 +194,14 @@ while True:
                 community = None
                 if 'extended-community' in update['attribute']:
                     community = update['attribute']['extended-community'][0]["string"]
-                ACL.insert(flow, community)
-                continue
+                ACL.insert(flow, community, is_ipv4)
+            continue
 
         if 'withdraw' in update:
-            flowlst = update['withdraw']['ipv4 flow']
+            withdraw = update['withdraw']
+            is_ipv4 = True if 'ipv4 flow' in withdraw else False
+            flowlst = withdraw['ipv4 flow'] if is_ipv4 else withdraw['ipv6 flow']
+            
             for flow in flowlst:
                 ACL.remove(flow)
             continue
