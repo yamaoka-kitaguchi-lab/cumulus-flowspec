@@ -22,6 +22,9 @@ import signal
 class ACL(object):
     dry = os.environ.get('CUMULUS_FLOW_RIB', False)
 
+    chain = "FLOWSPEC"
+    interface = "swp1"
+
     path = '/etc/cumulus/acl/policy.d/'
     priority = '60'
     prefix = 'flowspec'
@@ -66,19 +69,30 @@ class ACL(object):
             pass
 
     @staticmethod
-    def _build_acl(flow, drop=True):
-        acl = '[iptables]\n-A FORWARD --in-interface swp+'
+    def _expand_protocol_match(protocols):
+        # ToDo: Support commas, dots, relational operators and logical operators
+        return re.sub('[!<>=]', '', protocols)
+
+    @staticmethod
+    def _expand_port_match(ports):
+        # ToDo: Support commas, dots, relational operators and logical operators
+        return re.sub('[!<>=]', '', ports)
+
+    @classmethod
+    def _build_acl(cls, flow, drop=True):
+        # ToDo: Support commas, dots, relational operators and logical operators
+        acl = "[iptables]\n-A {c} -i {i}".format(c=cls.chain, i=cls.interface)
         if 'protocol' in flow:
-            acl += ' -p ' + re.sub('[!<>=]', '', flow['protocol'][0])
+            acl += ' -p ' + cls._expand_protocol_match(flow['protocol'][0])
         if 'source-ipv4' in flow:
             acl += ' -s ' + flow['source-ipv4'][0]
         if 'destination-ipv4' in flow:
             acl += ' -d ' + flow['destination-ipv4'][0]
         if 'source-port' in flow:
-            acl += ' --sport ' + re.sub('[!<>=]', '', flow['source-port'][0])
+            acl += ' --sport ' + cls._expand_port_match(flow['source-port'][0])
         if 'destination-port' in flow:
-            acl += ' --dport ' + re.sub('[!<>=]', '', flow['destination-port'][0])
-        acl = acl + ' -j {}\n'.format('DROP' if drop else 'ACCEPT')
+            acl += ' --dport ' + cls._expand_port_match(flow['destination-port'][0])
+        acl += ' -j {t}\n'.format(t='DROP' if drop else 'ACCEPT')
         return acl
 
     @classmethod
