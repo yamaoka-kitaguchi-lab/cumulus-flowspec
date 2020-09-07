@@ -48,7 +48,7 @@ class ACL(object):
         if key not in cls._known:
             return
         # removing key first so the call to clear never loops forever
-        uid, acl = cls._known.pop(key)
+        uid, _ = cls._known.pop(key)
         try:
             filename = cls._file(uid)
             if os.path.isfile(filename):
@@ -92,6 +92,8 @@ class ACL(object):
             acl += ' --sport ' + cls._expand_port_match(flow['source-port'][0])
         if 'destination-port' in flow:
             acl += ' --dport ' + cls._expand_port_match(flow['destination-port'][0])
+        if 'icmp-type' in flow:
+            acl += ' -p icmp --icmp-type ' + cls._expand_port_match(flow['icmp-type'][0])
         acl += ' -j {t}\n'.format(t='DROP' if drop else 'ACCEPT')
         return acl
 
@@ -126,7 +128,6 @@ class ACL(object):
         key = flow['string']
         if key not in cls._known:
             return
-        uid, _ = cls._known[key]
         cls._delete(key)
 
     @classmethod
