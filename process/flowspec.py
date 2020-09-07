@@ -8,7 +8,8 @@ Created by Thomas Mangin on 2017-07-06.
 Copyright (c) 2009-2017 Exa Networks. All rights reserved.
 
 License: 3-clause BSD
-See also: http://blog.sflow.com/2017/07/bgp-flowspec-on-white-box-switch.html
+See: http://blog.sflow.com/2017/07/bgp-flowspec-on-white-box-switch.html
+See also: https://work.delaat.net/rp/2019-2020/p53/presentation.pdf
 """
 
 import os
@@ -23,7 +24,6 @@ class ACL(object):
     dry = os.environ.get('CUMULUS_FLOW_RIB', False)
 
     chain = "FLOWSPEC"
-    interface = "swp1"
 
     path = '/etc/cumulus/acl/policy.d/'
     priority = '60'
@@ -81,7 +81,7 @@ class ACL(object):
     @classmethod
     def _build_acl(cls, flow, is_ipv4=True, is_drop=False):
         # ToDo: Support commas, dots, relational operators and logical operators
-        acl = "[{v}]\n-A {c} -i {i}".format(v="iptables" if is_ipv4 else "ip6tables", c=cls.chain, i=cls.interface)
+        acl = "[{v}]\n-A {c}".format(v="iptables" if is_ipv4 else "ip6tables", c=cls.chain)
         if 'protocol' in flow:
             acl += ' -p {p}'.format(p=cls._expand_text_match(flow['protocol'][0]))
         if 'source-ipv4' in flow:
