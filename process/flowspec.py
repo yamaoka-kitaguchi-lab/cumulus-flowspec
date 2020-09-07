@@ -178,19 +178,21 @@ while True:
         update = message['neighbor']['message']['update']
 
         if 'announce' in update:
-            flow = update['announce']['ipv4 flow']
-            # The RFC allows both encoding
-            flow = flow['no-nexthop'][0] if 'no-nexthop' in flow else flow[0]
-
-            community = None
-            if 'extended-community' in update['attribute']:
-                community = update['attribute']['extended-community'][0]["string"]
-            ACL.insert(flow, community)
-            continue
+            flowlst = update['announce']['ipv4 flow']
+            if 'no-nexthop' in flowlst:
+                flowlst = flowlst['no-nexthop']
+            
+            for flow in flowlst:
+                community = None
+                if 'extended-community' in update['attribute']:
+                    community = update['attribute']['extended-community'][0]["string"]
+                ACL.insert(flow, community)
+                continue
 
         if 'withdraw' in update:
-            flow = update['withdraw']['ipv4 flow'][0]
-            ACL.remove(flow)
+            flowlst = update['withdraw']['ipv4 flow']
+            for flow in flowlst:
+                ACL.remove(flow)
             continue
 
     except KeyboardInterrupt:
